@@ -13,7 +13,6 @@ Include YAML header:
 - crawled (ISO timestamp)
 - mode (routine|burn)
 - sources_used
-- estimated_cost_diem
 - confidence (low|medium|high)
 
 Body sections (recommended):
