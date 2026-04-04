@@ -94,7 +94,7 @@ Use when user explicitly asks to consume remaining credits/budget aggressively.
 Steps:
 1. Run `scripts/provider-usage.sh` to check current usage (supports Tide Pool, legacy lobster, or generic `openclaw status` fallback)
 2. Run `scripts/check-balance.sh` if you have balance JSON input to parse (supports generic fields: `remaining`, `balance`, `credits`, or Venice-specific `venice.data.diem`)
-3. Keep reserve from config (`min_reserve_usd`) if set
+3. Keep reserve from config: use `min_reserve_usd` when set (>0), otherwise fall back to legacy `min_reserve_diem`
 4. Use heavier model + more sources (all optional sources enabled)
 5. Save after every topic (incremental write — never batch)
 6. Stop gracefully if balance or provider limit is hit
