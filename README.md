@@ -17,6 +17,8 @@ Bottom Feeder runs a practical pipeline:
 
 It is provider-agnostic and works with Anthropic/OpenAI/Venice/etc.
 
+**Works with any provider** — Anthropic, OpenAI, Venice/Diem, or whatever you're running. No vendor lock-in.
+
 ---
 
 ## New in this release
@@ -61,6 +63,11 @@ workspace/
    - `config/run-policy.md.example` → `config/run-policy.md`
    - `config/signals.yaml.example` → `config/signals.yaml`
 4. Run one routine topic first.
+3. Customize `config/topics.md` for your team's needs (see the file for guidance)
+4. Run a low-burn test:
+   - one topic
+   - Brave-only source
+   - output to `knowledge/topics/<slug>.md`
 
 ---
 
@@ -73,6 +80,12 @@ workspace/
 - `references/topic-selection/external-signals.md`
 - `references/output/run-progress.md`
 - `references/quality-gate/completion-checklist.md`
+- **Routine mode**: low-cost and cautious (1 topic, default sources, concise synthesis)
+- **Burn mode**: only when explicitly requested (all sources, deeper synthesis, heavier model)
+- **Reserve guardrail**: configurable via `min_reserve_usd` (or legacy `min_reserve_diem`)
+- **Multi-profile support**: if your provider has multiple auth profiles (team seats, API keys), the agent tracks rotation and flags when a profile is exhausted
+
+Bottom Feeder can read usage from the optional Tide Pool plugin (`provider-usage.sh`) and parse balances via `check-balance.sh`.
 
 ---
 
@@ -82,6 +95,22 @@ workspace/
 - `scripts/check-balance.sh` — budget parser
 - `scripts/estimate-cost.sh` — rough cost estimator
 - `scripts/check-provider-health.sh` — provider reachability preflight
+- `scripts/provider-usage.sh` — provider usage snapshot (Tide Pool → legacy lobster → `openclaw status` fallback)
+- `scripts/check-balance.sh` — parse budget from JSON (supports `remaining`, `balance`, `credits`, or `venice.data.diem`)
+- `scripts/estimate-cost.sh` — rough relative cost estimate by mode/source count
+
+---
+
+## 🔧 Customization
+
+### Topic seeds (`config/topics.md`)
+Replace the default topics with what matters to your team. Organize by priority tiers — the agent will pick the highest-value topics first. The more specific your seeds, the better the output.
+
+### Sources
+Default: Brave search + local knowledge. Optional: Perplexity (deep synthesis), Twitter (sentiment), CoinGecko/CoinMarketCap (crypto data), browser (page extraction). Add your own source modules in `references/research-sources/`.
+
+### Budget
+Set `min_reserve_usd: 0` for no reserve, or a positive number to keep a safety buffer. For Venice-first setups, keep `min_reserve_diem` as a legacy fallback reserve when USD is not configured. Optional per-topic caps can use provider-agnostic `max_estimated_cost_units_per_topic_*` (legacy `max_estimated_diem_per_topic_*` remains supported).
 
 ---
 
@@ -92,6 +121,9 @@ workspace/
 - Enable supervised mode + checkpoints for runs >2h
 - Configure a fallback chain instead of strict provider lock
 - Keep subagents short-lived (1 topic each)
+- Keep it crusty
+- Keep it clean
+- Don't zero the tank unless boss says so
 
 ---
 
