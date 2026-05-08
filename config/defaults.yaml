@@ -27,7 +27,7 @@ max_estimated_diem_per_topic_burn: 3.0
 # set auth_profiles to track rotation. Agent will flag when a profile is exhausted.
 # auth_profiles: 1  # default: single profile, no rotation needed
 
-# Optional tide-pool package hook (if installed)
+# Optional tide-pools package hook (if installed)
 usage_probe_script: scripts/provider-usage.sh
 
 # ------------------------------------------------------------------

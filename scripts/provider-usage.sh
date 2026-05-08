@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Optional Tide Pool hook for Bottom Feeder.
+# Optional Tide Pools hook for Bottom Feeder.
 # Output: JSON snapshot of provider usage + Venice augmentation.
 
-CORE_CLI="${TIDE_POOL_CLI:-$HOME/.openclaw/extensions/tide-pool/cli.mjs}"
+CORE_CLI="${TIDE_POOL_CLI:-$HOME/.openclaw/extensions/tide-pools/cli.mjs}"
 LEGACY_CLI="${LOBSTER_USAGE_CLI:-$HOME/.openclaw/extensions/lobster-usage/cli.mjs}"
 
 if [[ -f "$CORE_CLI" ]]; then
@@ -17,7 +17,7 @@ if [[ -f "$LEGACY_CLI" ]]; then
 fi
 
 # Fallback if optional package isn't installed.
-notice="tide-pool plugin not found at ${CORE_CLI} (legacy checked: ${LEGACY_CLI}); using fallback openclaw status (no Venice augmentation)."
+notice="tide-pools plugin not found at ${CORE_CLI} (legacy checked: ${LEGACY_CLI}); using fallback openclaw status (no Venice augmentation)."
 raw="$(openclaw status --usage --json 2>/dev/null || true)"
 if [[ -z "$raw" ]]; then
   printf '{"generatedAt":null,"providers":[],"statusError":"openclaw status failed","venice":null,"notice":%s}\n' "$(python3 - <<'PY' "$notice"

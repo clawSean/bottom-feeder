@@ -85,7 +85,7 @@ workspace/
 - **Reserve guardrail**: configurable via `min_reserve_usd` (or legacy `min_reserve_diem`)
 - **Multi-profile support**: if your provider has multiple auth profiles (team seats, API keys), the agent tracks rotation and flags when a profile is exhausted
 
-Bottom Feeder can read usage from the optional Tide Pool plugin (`provider-usage.sh`) and parse balances via `check-balance.sh`.
+Bottom Feeder can read usage from the optional Tide Pools plugin (`provider-usage.sh`) and parse balances via `check-balance.sh`.
 
 ---
 
@@ -95,7 +95,7 @@ Bottom Feeder can read usage from the optional Tide Pool plugin (`provider-usage
 - `scripts/check-balance.sh` — budget parser
 - `scripts/estimate-cost.sh` — rough cost estimator
 - `scripts/check-provider-health.sh` — provider reachability preflight
-- `scripts/provider-usage.sh` — provider usage snapshot (Tide Pool → legacy lobster → `openclaw status` fallback)
+- `scripts/provider-usage.sh` — provider usage snapshot (Tide Pools → legacy lobster → `openclaw status` fallback)
 - `scripts/check-balance.sh` — parse budget from JSON (supports `remaining`, `balance`, `credits`, or `venice.data.diem`)
 - `scripts/estimate-cost.sh` — rough relative cost estimate by mode/source count
 

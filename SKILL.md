@@ -118,7 +118,7 @@ Checkpoints read the run-progress file and new-file diffs, and announce status. 
 Use when user explicitly asks to consume remaining credits/budget aggressively.
 
 Steps:
-1. Run `scripts/provider-usage.sh` to check current usage (supports Tide Pool, legacy lobster, or generic `openclaw status` fallback)
+1. Run `scripts/provider-usage.sh` to check current usage (supports Tide Pools, legacy lobster, or generic `openclaw status` fallback)
 2. Run `scripts/check-balance.sh` if you have balance JSON input to parse (supports generic fields: `remaining`, `balance`, `credits`, or Venice-specific `venice.data.diem`)
 3. Keep reserve from config: use `min_reserve_usd` when set (>0), otherwise fall back to legacy `min_reserve_diem`
 4. Optional: run `scripts/check-provider-health.sh` to verify each provider in the fallback chain is reachable before launch
