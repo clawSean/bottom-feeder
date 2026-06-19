@@ -1,74 +1,114 @@
 ---
 name: bottom-feeder
-description: Depth-first knowledge crawling workflow that selects 1-2 high-value topics, researches with configured sources, synthesizes durable notes, and writes/updates files in knowledge/topics and knowledge/research. Use when asked to build or refresh knowledge files, run a scheduled knowledge-crawl, detect knowledge gaps, or run budget-aware research passes (supports any provider — Anthropic, OpenAI, Venice/Diem, etc.).
+description: Knowledge research pipeline for OpenClaw. Selects topics (context-driven, seeds, knowledge gaps, or external signals), researches with all available tools, synthesizes durable notes, and writes/updates files in knowledge/topics and knowledge/research. Modes — routine (1-2 topics), burn (N topics), fleet (external topic list, parallel dispatch). Use when asked to build or refresh knowledge files, run a scheduled knowledge-crawl, detect knowledge gaps, or run budget-aware research passes. Provider-agnostic (Anthropic, OpenAI, Venice/Diem, etc.).
 ---
 
 # Bottom Feeder
 
-Run a modular pipeline:
-
-0) **execution planning** (single vs batched vs supervised — see `references/execution/execution-modes.md`)
-1) topic selection
-2) research collection
-3) synthesis
-4) output writing
-5) monitoring (optional, for long runs — see `references/execution/checkpoint-monitoring.md`)
-
-Prioritize depth over breadth. Default to 1 topic (max 2) in routine mode.
+4-stage pipeline: select → collect → synthesize → write.
+Depth over breadth. Write after every topic. Never batch.
+Provider-agnostic — works with Anthropic, OpenAI, Venice/Diem, or local models.
 
 ## Inputs to Load First
 
 1. `config/defaults.yaml`
-2. `config/topics.md`
-3. If present, `config/next-topic.md` (force-priority override)
-4. If present, `config/run-policy.md` (hard constraints for the current run — a fresh one can be derived from `config/run-policy.md.example`)
-5. If present, `config/signals.yaml` (external signal sources like Asana/Jira/Linear/GitHub — see `references/topic-selection/external-signals.md`)
+2. `config/topics.md` — seed topic list
+3. If present, `config/next-topic.md` — force-priority override
+4. If present, `config/run-policy.md` — hard constraints for the current run (derive a fresh one from `config/run-policy.md.example`)
+5. If present, `config/signals.yaml` — external signal sources like Asana/Jira/Linear/GitHub (see `references/topic-selection/external-signals.md`)
 
-## Workflow
+## Modes
 
-### 0) Plan execution
+### Routine (default)
+- 1-2 topics, cost-conscious source usage, concise output, single-agent execution.
+- Quiet completion unless the user asked for a report.
 
-Before selecting topics, decide **how** the run will execute:
+### Burn (explicit request)
+- N topics, all available sources enabled, heavier model.
+- Steps:
+  1. Run `scripts/provider-usage.sh` (best-effort, continues on failure).
+  2. Run `scripts/check-balance.sh` if you have balance JSON to parse (supports `remaining`, `balance`, `credits`, or `venice.data.diem`).
+  3. Keep reserve from config: use `min_reserve_usd` when set (>0), otherwise fall back to legacy `min_reserve_diem`.
+  4. Optional: run `scripts/check-provider-health.sh` to verify each provider in the fallback chain is reachable before launch.
+  5. Execute in batched-parallel or supervised mode (see `references/execution/execution-modes.md`). Do **not** spawn all topics at once — that is the #1 cause of rate-limit cascades.
+  6. Write after every topic (incremental write — never batch).
+  7. Stop gracefully if balance or provider limit is hit.
+  8. If a `provider_fallback` chain is declared, honor it strictly (see `references/execution/provider-fallback.md`).
+  9. If multiple auth profiles are available, monitor for exhaustion and note when rotation is needed.
+  10. Set cron safety nets per `references/output/burn-continuity.md`.
+  11. After 80%+ complete, shift to strategic synthesis.
+
+### Fleet (explicit request or topic list file provided)
+- Accepts a topic list file path (markdown or plain text).
+- Steps:
+  1. Parse the topic list file. H2/H3 headings = topic names, body text under heading = context. Bullet items = topics, sub-bullets = context. Plain text: one topic per line. Extract topic name + any per-topic description.
+  2. Run `scripts/provider-usage.sh` (best-effort, continues on failure).
+  3. Create run progress log: `knowledge/.runs/<date>-fleet-<HHMM>.md`.
+  4. Set cron safety nets per `references/output/burn-continuity.md`.
+  5. Dispatch topics using the orchestrator pattern (below).
+  6. Checkpoints at 25%, 50%, 75% or hourly — whichever comes first.
+  7. After 80%+ complete, shift to strategic synthesis.
+- **Orchestrator pattern:** the main session assigns topics, tracks completion, and reports. Each topic research is self-contained.
+- **Parallelism preferred, not required.** When `sessions_spawn`, sub-agents, or similar tools are available, dispatch topics concurrently up to `parallelism` from config (and never more than `batch_size`). When unavailable (single-session, limited provider), process sequentially through the same pipeline. Never block or fail because parallelism is unavailable.
+- **Sub-agent context:** each spawned sub-agent needs: (1) topic name + description from the list, (2) the knowledge-writer format spec from `references/output/knowledge-writer.md`, (3) the quality gate from `references/quality-gate/completion-checklist.md`, (4) output directory paths from config. Do not inject the full SKILL.md — keep prompts focused.
+- **Sub-agent failure handling:** if a sub-agent dies, times out, or returns an error: log the topic as `status: failed` in the run progress log with the error reason, then continue with the next topic. Do not retry automatically — failed topics become follow-up candidates in the run summary. The orchestrator should never crash because a sub-agent failed.
+- The orchestrator maintains the run progress log and writes strategic synthesis after all topics complete.
+
+## Execution planning
+
+Before selecting topics, decide **how** the run will execute (full decision guide in `references/execution/execution-modes.md`):
 
 - **Single-agent (default):** one session writes all topics in sequence. Best for routine mode, ≤3 topics, stable providers.
-- **Batched parallel:** N concurrent short-lived subagents (N=2–3 by default), 1 topic each, tight per-subagent timeout. Best for burn mode, >3 topics, when provider can sustain parallelism.
+- **Batched parallel:** N concurrent short-lived subagents (N=2–3 by default), 1 topic each, tight per-subagent timeout. Best for burn mode, >3 topics, when the provider can sustain parallelism.
 - **Supervised:** coordinator + workers + checkpoint crons. Best for long runs (>2h), unreliable providers, or when you want push-based progress reports.
 
-See `references/execution/execution-modes.md` for the full decision guide.
+If a run-policy declares `execution_mode`, use it. Otherwise infer from `mode` (routine → single, burn → batched, explicit long run → supervised).
 
-If a run-policy is present and declares `execution_mode`, use it. Otherwise infer from `mode` (routine → single, burn → batched, explicit long run → supervised).
+### Provider fallback (when configured)
+If `config/run-policy.md` or `config/defaults.yaml` declares a `provider_fallback` chain, enforce it per `references/execution/provider-fallback.md`:
+- Track consecutive failures per provider.
+- On qualified failure (rate_limit / cooldown / auth / transport), rotate to the next provider.
+- Log every rotation with reason, timestamp, and provider change in the run-progress file.
+- If **all** providers in the chain are exhausted, stop and ask the user whether to wait, extend the chain, or abort.
 
-### 1) Select topic
+### Provider lock (strict mode)
+If `config/run-policy.md` specifies `provider_lock: <provider>` and **no** fallback chain, enforce the lock strictly and stop on failure. Do not silently switch providers. Use this only when provider compliance is a hard requirement (legal/billing/policy). Prefer fallback chains in normal operation.
 
-Use these modules in order:
-- `references/topic-selection/hardcoded-list.md`
-- `references/topic-selection/conversation-mining.md`
-- `references/topic-selection/knowledge-gaps.md`
-- `references/topic-selection/knowledge-refresh.md`
-- `references/topic-selection/trending.md`
-- `references/topic-selection/external-signals.md` (optional — pulls live task/issue/ticket signal from Asana/Jira/Linear/GitHub/Notion/etc. to steer topics toward real operational pressure)
+## Pipeline
 
-Combine candidates, dedupe, score, and pick top 1-2 (or as many as the run-policy declares).
+### Stage 1: Select topic
 
-Before finalizing topic, run a quick duplicate check:
-- Search `knowledge/` for existing coverage.
-- If coverage is already strong and recent, skip and pick next candidate.
+**Skip when topics are provided directly** (ad-hoc, burn with explicit list, fleet mode, or `config/next-topic.md`). Go straight to Stage 2.
 
-### 2) Collect research
+When selection is needed:
+1. `references/topic-selection/context-driven.md` — mine workspace context (PRIMARY)
+2. `references/topic-selection/department-playbooks.md` — per-department guides
+3. `references/topic-selection/hardcoded-list.md` — seed list + external file fallback
+4. `references/topic-selection/external-signals.md` — optional: pull live task/issue/ticket signal from Asana/Jira/Linear/GitHub/Notion/etc. to steer topics toward real operational pressure
 
-Pick sources by topic type using:
-- `references/research-sources/brave.md` (baseline)
-- `references/research-sources/perplexity.md` (optional deep synth)
-- `references/research-sources/twitter.md` (optional sentiment/news pulse)
-- `references/research-sources/coingecko.md` (optional crypto data)
-- `references/research-sources/coinmarketcap.md` (optional crypto metadata)
-- `references/research-sources/browser.md` (optional page extraction)
+Combine candidates, dedupe, score by Urgency × Impact × Knowledge Gap, pick top N.
 
-Low-cost default: brave only, plus local knowledge lookup.
+Before finalizing, check `knowledge/` for existing coverage. Strong + recent coverage → skip to next candidate.
 
-### 3) Synthesize
+### Stage 2: Collect research
 
-Create one durable, standalone knowledge artifact per topic:
+Follow `references/research-sources.md`.
+
+**Core principle: use ALL tools available in your current environment.** Do not default to a single search provider. Triangulate across source categories.
+
+Before external searches, check local knowledge (`knowledge/`, `memory/`) for existing coverage.
+
+Source strategy by topic type:
+- **Operational/team topics:** internal tools first (Asana, Slack, Intercom), then web for best practices.
+- **Technical/code topics:** clone repos, read source code, then web for docs and community context.
+- **Market/competitive topics:** web search + structured APIs, then social for sentiment.
+- **Strategic/synthesis topics:** local knowledge + internal tools, then web to validate.
+
+**Cost awareness:** routine mode uses 1-2 search queries + local knowledge. Burn/fleet mode uses everything aggressively.
+
+### Stage 3: Synthesize + quality gate
+
+One durable, standalone knowledge artifact per topic:
 - What it is
 - Current state
 - Why it matters (for the user's ecosystem/team/work)
@@ -76,92 +116,57 @@ Create one durable, standalone knowledge artifact per topic:
 - Open questions + what to watch
 - Sources with dates
 
-For updates, include a short "What's new since last update" section.
+For updates, prepend a "What's new" section. For department playbooks, follow `references/topic-selection/department-playbooks.md`.
 
-### 3.5) Quality gate
+**Quality gate:** run `references/quality-gate/completion-checklist.md` before advancing. Every section must pass or be tagged `[INCOMPLETE: reason]`.
 
-Before advancing to the next topic, run:
-- `references/quality-gate/completion-checklist.md`
+**Checkpoints (burn/fleet):**
+- After topic 5 (or 25% in fleet): offer user calibration review of 2-3 files.
+- After topic 15 (or 50% in fleet): check context — if >60%, consider fresh session; if >70%, strongly prefer it.
+- Hourly: `session_status` for context % and provider state.
 
-Every section must pass or be explicitly tagged `[INCOMPLETE: reason]`.
-Do not start topic N+1 until topic N clears the gate.
-
-### 4) Write output
+### Stage 4: Write output
 
 Use:
-- `references/output/knowledge-writer.md`
-- `references/output/run-progress.md`
-- `references/output/lobsearch-index.md`
+- `references/output/knowledge-writer.md` — file format
+- `references/output/run-progress.md` — audit trail
+- `references/output/lobsearch-index.md` — search index refresh (best-effort)
+- `references/output/strategic-synthesis.md` — cross-topic action plans
+- `references/output/burn-continuity.md` — cron safety nets for long runs
 
-Write immediately after each topic (incremental write, never batch all topics first).
+Write immediately after each topic clears the quality gate (incremental write — never batch all topics first).
+Update the run progress log after every write: `knowledge/.runs/<date>-<mode>-<HHMM>.md`. This is your audit trail — always current, even if the run is interrupted.
 
-After writing each topic, update the run progress log (`knowledge/.runs/<date>-<mode>.md`).
-This is your audit trail — always current, even if the run is interrupted.
+### Stage 5: Monitoring (optional)
 
-### 5) Monitoring (optional)
-
-For **supervised** or long burn runs, schedule checkpoint jobs (cron or equivalent) to verify forward progress and surface stalls before they become expensive:
-- `references/execution/checkpoint-monitoring.md`
-
-Checkpoints read the run-progress file and new-file diffs, and announce status. They do **not** need to spawn new workers — they raise alerts that the coordinator can act on.
-
-## Modes
-
-### Routine mode (default)
-- 1 topic
-- low-cost sources
-- single-agent execution
-- concise synthesis
-- quiet completion unless user asked for report
-
-### Burn mode (explicit only)
-Use when user explicitly asks to consume remaining credits/budget aggressively.
-
-Steps:
-1. Run `scripts/provider-usage.sh` to check current usage (supports Tide Pools, legacy lobster, or generic `openclaw status` fallback)
-2. Run `scripts/check-balance.sh` if you have balance JSON input to parse (supports generic fields: `remaining`, `balance`, `credits`, or Venice-specific `venice.data.diem`)
-3. Keep reserve from config: use `min_reserve_usd` when set (>0), otherwise fall back to legacy `min_reserve_diem`
-4. Optional: run `scripts/check-provider-health.sh` to verify each provider in the fallback chain is reachable before launch
-5. Use heavier model + more sources (all optional sources enabled)
-6. **Execute in batched parallel or supervised mode** (see execution-modes.md). Do **not** spawn all topics at once — that is the #1 cause of rate-limit cascades.
-7. Save after every topic (incremental write — never batch)
-8. Stop gracefully if balance or provider limit is hit
-9. If the run-policy declares a `provider_fallback` chain, honor it strictly: primary first, switch to next on qualified failure (see `references/execution/provider-fallback.md`).
-10. If multiple auth profiles are available, monitor for exhaustion and note when rotation is needed
-
-### Provider fallback (when configured)
-If `config/run-policy.md` declares a fallback chain, enforce it per `references/execution/provider-fallback.md`:
-- Track consecutive failures per provider.
-- On qualified failure (rate_limit / cooldown / auth / transport), rotate to next provider.
-- Log every rotation with reason, timestamp, and provider change in the run-progress file.
-- If **all** providers in the chain are exhausted, stop and ask the user whether to wait, extend chain, or abort.
-
-### Provider lock (strict mode)
-If `config/run-policy.md` specifies `provider_lock: <provider>` and **no** fallback chain, enforce the lock strictly and stop on failure. Do not silently switch providers. This mode should be used only when provider compliance is a hard requirement (legal/billing/policy). Prefer fallback chains in normal operation.
-3. Keep reserve from config (`min_reserve_usd`) if set
-4. Use heavier model + more sources (all optional sources enabled)
-5. Save after every topic (incremental write — never batch)
-6. Stop gracefully if balance or provider limit is hit
-7. If multiple auth profiles are available, monitor for exhaustion and note when rotation is needed
+For **supervised** or long burn runs, schedule checkpoint jobs (cron or equivalent) to verify forward progress and surface stalls before they become expensive — see `references/execution/checkpoint-monitoring.md`. Checkpoints read the run-progress file and new-file diffs and announce status; they do **not** spawn new workers, they raise alerts the coordinator can act on. For recovery when subagents die or the run-log drifts from disk, see `references/execution/recovery-patterns.md`.
 
 ## Ad-hoc topic injection
 
-Users can pass topics directly instead of using the seed list:
-- "Run bottom feeder on [topic1, topic2, ...]"
-- Ad-hoc topics skip the selection stage entirely — go straight to research.
-- Still subject to quality gate and progress logging.
+"Run bottom feeder on [topic1, topic2, ...]"
+- Skips Stage 1. No limit on topic count.
+- Quality gate and progress logging still apply.
+
+## Phased burn (team deployments)
+
+**Phase 1 — Context gathering (15-30 min):** Mine workspace, score topics.
+**Phase 2 — Topic burn (bulk):** Priority order. Checkpoints after 5 and 15.
+**Phase 3 — Department playbooks (15-20%):** Per-department guides with live task data.
+**Phase 4 — Strategic synthesis (10-15%):** Priority matrix, competitive positioning, action items. See `references/output/strategic-synthesis.md`.
 
 ## Guardrails
 
-- Never spend down to zero unless user explicitly says to.
-- Avoid duplicate rewrites when no meaningful updates exist.
-- Prefer free/local sources first.
-- If source collection is weak, write a partial with clear uncertainty notes.
-- Keep files readable; split oversized output into follow-up research files.
-- In burn mode with multiple auth profiles, track which profile is active and flag when switching is needed.
+- Never spend down to zero unless the user explicitly says to.
+- Skip duplicate rewrites when no meaningful updates exist.
+- Prefer local/free sources before paid ones.
+- Weak sources → write a partial with `[INCOMPLETE: reason]` tags and clear uncertainty notes.
+- Split oversized output into follow-up research files; keep files readable.
+- Log all sources used (tool, URL, date) in every output file.
+- Link every synthesis recommendation to its supporting knowledge file.
 - **Never spawn more than `batch_size` concurrent subagents** (default: 3). Larger parallel spawns trigger provider rate-limit cascades and kill throughput.
 - **Keep subagents short-lived** (1 topic per subagent, tight timeout). Long-running subagents die silently under load.
 - **Keep the run-log synced with disk state.** If a file exists but the run-log still shows "in-progress", the log is stale and must be reconciled (see `references/output/run-progress.md`).
+- In burn mode with multiple auth profiles, track which profile is active and flag when switching is needed.
 
 ## Quick manual run recipe
 
@@ -171,14 +176,16 @@ Users can pass topics directly instead of using the seed list:
 4. Log run note in `memory/daily/YYYY-MM-DD.md`
 5. Report: topic, files changed, estimated cost mode used
 
-## References — new in this version
+## Key references
 
 - `references/execution/execution-modes.md` — single vs batched parallel vs supervised
 - `references/execution/provider-fallback.md` — fallback chain semantics, triggers, rotation policy
 - `references/execution/checkpoint-monitoring.md` — cron-based checkpoint pattern for long runs
 - `references/execution/recovery-patterns.md` — what to do when subagents die
 - `references/execution/lessons-learned.md` — retrospective from real burn runs
+- `references/topic-selection/context-driven.md` — primary, context-mined topic selection
 - `references/topic-selection/external-signals.md` — integrate live task/issue/ticket signal
+- `references/research-sources.md` — unified source strategy
 - `config/run-policy.md.example` — opt-in run-policy template with fallback + batching
 - `config/signals.yaml.example` — opt-in external signal sources template
 - `scripts/check-provider-health.sh` — pre-flight provider reachability probe
