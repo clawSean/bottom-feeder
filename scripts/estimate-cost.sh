@@ -4,7 +4,6 @@
 # Routine ~0.08 base, Burn ~0.60 base, +0.03 per additional source.
 # Design: prints a number on success, prints "0.0000" on any error.
 #         NEVER exits non-zero. Budget is informational only.
-
 mode="${1:-routine}"
 sources="${2:-2}"
 

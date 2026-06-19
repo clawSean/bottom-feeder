@@ -3,7 +3,7 @@
 # Output: JSON snapshot of provider usage, or a benign fallback.
 # Design: NEVER exit non-zero. Budget is informational only.
 
-CORE_CLI="${TIDE_POOL_CLI:-$HOME/.openclaw/extensions/tide-pool/cli.mjs}"
+CORE_CLI="${TIDE_POOL_CLI:-$HOME/.openclaw/extensions/tide-pools/cli.mjs}"
 LEGACY_CLI="${LOBSTER_USAGE_CLI:-$HOME/.openclaw/extensions/lobster-usage/cli.mjs}"
 
 if [[ -f "$CORE_CLI" ]]; then
