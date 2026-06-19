@@ -3,7 +3,7 @@
 Before advancing to the next topic, verify the current topic's output passes ALL checks:
 
 ## Required sections (knowledge/topics file)
-- [ ] Summary — ≥3 sentences, no placeholders
+- [ ] Summary — ≥2 sentences (aim for 3 on broad topics), no placeholders
 - [ ] Current State — concrete facts with dates, not vague
 - [ ] Why It Matters — tied to the user's ecosystem/work, not generic
 - [ ] Open Questions — at least 1 genuine unknown

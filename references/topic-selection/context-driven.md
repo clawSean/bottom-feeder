@@ -1,57 +1,63 @@
 # context-driven
 
-Select topics by mining the workspace's existing context — not just generic seed lists.
+Primary topic selection method. Mine the workspace's existing context — not generic seed lists.
 
-## Why This Matters
+## Why
 
-Generic topic seeds produce encyclopedia entries. Context-driven selection produces decision support documents that reference real people, real projects, and real deadlines.
+Generic seeds produce encyclopedias. Context-driven selection produces decision support documents tied to real people, real projects, and real deadlines.
 
-## Sources to Mine (in priority order)
+## Sources to Mine (priority order)
 
-1. **Project management data** — Asana, Linear, Jira, GitHub Issues
-   - Pull active tasks, blocked items, upcoming milestones
+1. **Project management** — Asana, Linear, Jira, GitHub Issues
+   - Active tasks, blocked items, upcoming milestones
    - Each initiative or epic is a potential topic
-   - Blocked items are especially valuable — research WHY something is blocked
+   - Blocked items are high-value — research WHY something is blocked
 
-2. **Team conversations** — Slack, Discord, Telegram history
-   - What questions keep coming up?
-   - What decisions are pending?
-   - What knowledge gaps are people expressing?
+2. **Team conversations** — Slack, Discord, Telegram, daily logs
+   - Repeated themes, explicit asks, unresolved questions
+   - Score boost when mention count >= 2 or time-sensitive
+   - Mine `memory/daily/YYYY-MM-DD.md` (today + yesterday)
 
-3. **Existing knowledge files** — `knowledge/`, `memory/`
-   - What topics have stale dates (>30 days old)?
-   - What topics are referenced but don't have a file yet?
-   - What cross-references are broken?
+3. **Existing knowledge** — `knowledge/`, `memory/`
+   - Topics with stale dates (>14 days old in rapid-change domains)
+   - Topics referenced but without a file yet
+   - Broken cross-references
 
 4. **Company docs** — Google Docs, Notion, Confluence
-   - Strategy documents that need research backing
+   - Strategy documents needing research backing
    - Meeting notes with unresolved action items
-   - Roadmap items that need competitive research
+   - Roadmap items needing competitive research
 
 5. **User/team profiles** — `memory/contacts/`, USER.md
    - What is each team member working on?
-   - Where are they overloaded?
-   - What knowledge would help them most?
+   - Where are they overloaded? What knowledge helps them most?
 
-## How to Use
-
-Before selecting from the hardcoded seed list, spend 15-30 minutes pulling context from the sources above. Map each context signal to a potential topic. Then score by:
+## Scoring
 
 **Topic Score = Urgency × Impact × Knowledge Gap**
 
-- **Urgency:** Is there a deadline? Is something blocked? (High = this week, Medium = this month, Low = this quarter)
-- **Impact:** How many people/decisions does this inform? (High = whole team, Medium = one department, Low = one person)
-- **Knowledge Gap:** How much do we NOT know about this? (High = no existing coverage, Medium = stale coverage, Low = recent coverage exists)
+- **Urgency:** deadline or blocker? (High = this week, Medium = this month, Low = this quarter)
+- **Impact:** how many people/decisions informed? (High = whole team, Medium = one dept, Low = one person)
+- **Knowledge Gap:** how much do we NOT know? (High = no coverage, Medium = stale, Low = recent + strong)
 
-Topics scoring High on all three dimensions go first.
+High on all three → goes first.
 
-## Example
+## Staleness Check
 
-Context signal: "Sam Holmes flagged urgency on v4.49.0 deliverables"
-→ Topic: "v4.49.0 Release Scope Recommendation"
-→ Score: Urgency=High (this week), Impact=High (whole team), Gap=High (no analysis exists)
-→ Result: This topic gets written before generic "Bitcoin L2 ecosystem" research.
+Before finalizing any candidate:
+- Search `knowledge/` by keyword/slug
+- No file or only shallow notes → high-value gap, prioritize
+- File exists but >14 days old in rapid-change domain → refresh candidate
+- Coverage strong and fresh → skip, pick next
 
-## Anti-Pattern
+## Trending Signals
 
-Don't just mine context and produce a list. **Map each topic back to a specific person who will use it.** If you can't name the person, the topic probably isn't worth writing.
+Light trend scan to propose additional candidates:
+- Web headlines via any search tool
+- Recent community chatter in relevant channels
+- Prefer topics intersecting configured interests
+- Avoid pure hype — cap to 1 trending pick per run
+
+## Tip
+
+Prefer topics you can map to a specific person or team who will use the output. General-interest topics that serve the whole org are still valid — don't discard them just because there's no single owner.

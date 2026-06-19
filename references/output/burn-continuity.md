@@ -1,13 +1,13 @@
 # burn-continuity
 
-Strategies for maintaining burn mode across long sessions, context limits, and session interruptions.
+Strategies for maintaining burn and fleet sessions across context limits and interruptions.
 
 ## The Problem
 
-Extended burn sessions (4+ hours) face three threats:
-1. **Context overflow** — session hits token limit, compaction loses progress tracking
-2. **Session death** — connection drops, process killed, provider rate limit
-3. **Quality degradation** — later topics get thinner as context fills with earlier output
+Extended sessions (4+ hours, or fleet runs with many topics) face three threats:
+1. **Context overflow** -- session hits token limit, compaction loses progress tracking
+2. **Session death** -- connection drops, process killed, provider rate limit
+3. **Quality degradation** -- later topics get thinner as context fills with earlier output
 
 ## Solution: Cron Safety Nets
 
@@ -21,21 +21,22 @@ Set one-shot cron jobs at regular intervals (30-60 min) that:
 openclaw cron add \
   --name "burn-check-HHMM" \
   --at "2026-04-04T15:00:00Z" \
-  --channel telegram --to <chat_id> \
-  --model sonnet \
+  --channel <your-channel> --to <your-chat-id> \
+  --model <cheaper-model> \
   --timeout-seconds 300 \
   --delete-after-run \
   --message "Continue the knowledge burn. Read <run-log>. Write remaining topics."
 ```
 
 **Key design choices:**
-- Use a cheaper model (sonnet) for cron continuity — saves budget for main session
+- Use a cheaper model than the main session for cron continuity (saves budget)
 - Set `--delete-after-run` so crons don't accumulate
 - Include the full run log path in the message so the cron session has context
+- Adjust `--channel` and `--to` for your deployment (Telegram, Slack, Discord, etc.)
 
 ## Solution: Run Progress Log
 
-Always maintain `knowledge/.runs/<date>-<mode>.md` with:
+Always maintain `knowledge/.runs/<date>-<mode>-<HHMM>.md` with:
 - Every topic completed (title, file path, time, sources used, confidence)
 - Current status ("Continuing burn — 24 topics done, moving to Tier 3")
 - Remaining topics list

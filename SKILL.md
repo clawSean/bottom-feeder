@@ -1,62 +1,87 @@
 ---
 name: bottom-feeder
-description: Depth-first knowledge crawling workflow that selects 1-2 high-value topics, researches with configured sources, synthesizes durable notes, and writes/updates files in knowledge/topics and knowledge/research. Use when asked to build or refresh knowledge files, run a scheduled knowledge-crawl, detect knowledge gaps, run budget-aware research passes, or generate department playbooks and strategic synthesis documents. Supports any provider (Anthropic, OpenAI, Venice/Diem, etc.).
+description: >
+  Knowledge research pipeline. Selects topics, researches using all available tools, synthesizes durable notes, and writes to knowledge/topics and knowledge/research. Modes: routine (1-2 topics), burn (N topics), fleet (external topic list, parallel dispatch). Works with any provider.
 ---
 
 # Bottom Feeder
 
-Run a modular 4-stage pipeline:
-1) topic selection
-2) research collection
-3) synthesis
-4) output writing
+4-stage pipeline: select → collect → synthesize → write.
+Depth over breadth. Write after every topic. Never batch.
 
-Prioritize depth over breadth. Default to 1 topic (max 2).
-
-## Inputs to Load First
+## Inputs
 
 1. `config/defaults.yaml`
-2. `config/topics.md`
-3. If present, `config/next-topic.md` (force-priority override)
+2. `config/topics.md` — seed topic list
+3. `config/next-topic.md` — force-priority override (if present)
 
-## Workflow
+## Modes
 
-### 1) Select topic
+### Routine (default)
+- 1-2 topics, cost-conscious source usage, concise output.
+- Quiet completion unless user asked for a report.
 
-Use these modules in order:
-- `references/topic-selection/context-driven.md` (mine workspace context: project management, conversations, team profiles)
-- `references/topic-selection/department-playbooks.md` (generate per-department operational guides)
-- `references/topic-selection/hardcoded-list.md`
-- `references/topic-selection/conversation-mining.md`
-- `references/topic-selection/knowledge-gaps.md`
-- `references/topic-selection/knowledge-refresh.md`
-- `references/topic-selection/trending.md`
+### Burn (explicit request)
+- N topics, all available sources enabled.
+- Steps:
+  1. Run `scripts/provider-usage.sh` (best-effort, continues on failure).
+  2. Keep reserve from config (`min_reserve_usd`) if balance data is available.
+  3. Use all available sources aggressively.
+  4. Write after every topic.
+  5. Stop gracefully if provider limit is hit.
+  6. Set cron safety nets per `references/output/burn-continuity.md`.
+  7. After 80%+ complete, shift to strategic synthesis.
 
-Combine candidates, dedupe, score, and pick top 1-2.
+### Fleet (explicit request or topic list file provided)
+- Accepts a topic list file path (markdown or plain text).
+- Steps:
+  1. Parse the topic list file. H2/H3 headings = topic names, body text under heading = context. Bullet items = topics, sub-bullets = context. Plain text: one topic per line. Extract topic name + any per-topic description.
+  2. Run `scripts/provider-usage.sh` (best-effort, continues on failure).
+  3. Create run progress log: `knowledge/.runs/<date>-fleet-<HHMM>.md`.
+  4. Set cron safety nets per `references/output/burn-continuity.md`.
+  5. Dispatch topics using orchestrator pattern (see below).
+  6. Checkpoints at 25%, 50%, 75% or hourly — whichever comes first.
+  7. After 80%+ complete, shift to strategic synthesis.
+- **Orchestrator pattern:** the main session assigns topics, tracks completion, and reports. Each topic research is self-contained.
+- **Parallelism preferred, not required.** When `sessions_spawn`, sub-agents, or similar tools are available, dispatch topics concurrently up to `parallelism` from config. When unavailable (single-session, limited provider), process sequentially through the same pipeline. Never block or fail because parallelism is unavailable.
+- **Sub-agent context:** each spawned sub-agent needs: (1) topic name + description from the list, (2) the knowledge-writer format spec from `references/output/knowledge-writer.md`, (3) the quality gate from `references/quality-gate/completion-checklist.md`, (4) output directory paths from config. Do not inject the full SKILL.md — keep prompts focused.
+- **Sub-agent failure handling:** if a sub-agent dies, times out, or returns an error: log the topic as `status: failed` in the run progress log with the error reason, then continue with the next topic. Do not retry automatically — failed topics become follow-up candidates in the run summary. The orchestrator should never crash because a sub-agent failed.
+- The orchestrator maintains the run progress log and writes strategic synthesis after all topics complete.
 
-**Context-driven selection** should run first in any team/workspace deployment. Generic seed lists are fallback — real value comes from mining the workspace's actual projects, people, and decisions.
+## Pipeline
 
-Before finalizing topic, run a quick duplicate check:
-- Search `knowledge/` for existing coverage.
-- If coverage is already strong and recent, skip and pick next candidate.
+### Stage 1: Select topic
 
-### 2) Collect research
+**Skip when topics are provided directly** (ad-hoc, burn with explicit list, fleet mode, or `config/next-topic.md`). Go straight to Stage 2.
 
-Pick sources by topic type using:
-- `references/research-sources/brave.md` (baseline)
-- `references/research-sources/perplexity.md` (optional deep synth)
-- `references/research-sources/twitter.md` (optional sentiment/news pulse)
-- `references/research-sources/coingecko.md` (optional crypto data)
-- `references/research-sources/coinmarketcap.md` (optional crypto metadata)
-- `references/research-sources/browser.md` (optional page extraction)
+When selection is needed:
+1. `references/topic-selection/context-driven.md` — mine workspace context (PRIMARY)
+2. `references/topic-selection/department-playbooks.md` — per-department guides
+3. `references/topic-selection/hardcoded-list.md` — seed list + external file fallback
 
-Low-cost default: brave only, plus local knowledge lookup.
+Combine candidates, dedupe, score by Urgency × Impact × Knowledge Gap, pick top N.
 
-**For department playbooks and context-driven topics:** also pull from project management tools (Asana, Linear, Jira) and team communication history. Internal context is more valuable than web searches for operational topics.
+Before finalizing, check `knowledge/` for existing coverage. Strong + recent coverage → skip to next candidate.
 
-### 3) Synthesize
+### Stage 2: Collect research
 
-Create one durable, standalone knowledge artifact per topic:
+Follow `references/research-sources.md`.
+
+**Core principle: use ALL tools available in your current environment.** Do not default to a single search provider. Triangulate across source categories.
+
+Before external searches, check local knowledge (`knowledge/`, `memory/`) for existing coverage.
+
+Source strategy by topic type:
+- **Operational/team topics:** internal tools first (Asana, Slack, Intercom), then web for best practices.
+- **Technical/code topics:** clone repos, read source code, then web for docs and community context.
+- **Market/competitive topics:** web search + structured APIs, then social for sentiment.
+- **Strategic/synthesis topics:** local knowledge + internal tools, then web to validate.
+
+**Cost awareness:** routine mode uses 1-2 search queries + local knowledge. Burn/fleet mode uses everything aggressively.
+
+### Stage 3: Synthesize + quality gate
+
+One durable, standalone knowledge artifact per topic:
 - What it is
 - Current state
 - Why it matters (for the user's ecosystem/team/work)
@@ -64,108 +89,46 @@ Create one durable, standalone knowledge artifact per topic:
 - Open questions + what to watch
 - Sources with dates
 
-For updates, include a short "What's new since last update" section.
+For updates, prepend a "What's new" section. For department playbooks, follow `references/topic-selection/department-playbooks.md`.
 
-**For department playbooks:** follow the structure in `references/topic-selection/department-playbooks.md` (problem → current tasks → specific workflows → time savings → how to start).
+**Quality gate:** run `references/quality-gate/completion-checklist.md` before advancing. Every section must pass or be tagged `[INCOMPLETE: reason]`.
 
-### 3.5) Quality gate
+**Checkpoints (burn/fleet):**
+- After topic 5 (or 25% in fleet): offer user calibration review of 2-3 files.
+- After topic 15 (or 50% in fleet): check context — if >60%, consider fresh session; if >70%, strongly prefer it.
+- Hourly: `session_status` for context % and provider state.
 
-Before advancing to the next topic, run:
-- `references/quality-gate/completion-checklist.md`
-
-Every section must pass or be explicitly tagged `[INCOMPLETE: reason]`.
-Do not start topic N+1 until topic N clears the gate.
-
-**Quality checkpoints during burn mode:**
-- After topic 5: pause and offer the user a chance to review 2-3 files for calibration
-- After topic 15: check context usage — if >60%, consider fresh session or reduced depth
-- Every hour: run `session_status` to monitor context % and provider profile
-
-### 4) Write output
+### Stage 4: Write output
 
 Use:
-- `references/output/knowledge-writer.md`
-- `references/output/run-progress.md`
-- `references/output/lobsearch-index.md`
-- `references/output/strategic-synthesis.md` (for connecting multiple topics into action plans)
-- `references/output/burn-continuity.md` (for maintaining long burn sessions)
+- `references/output/knowledge-writer.md` — file format
+- `references/output/run-progress.md` — audit trail
+- `references/output/lobsearch-index.md` — search index refresh (best-effort)
+- `references/output/strategic-synthesis.md` — cross-topic action plans
+- `references/output/burn-continuity.md` — cron safety nets for long runs
 
-Write immediately after each topic (incremental write, never batch all topics first).
-
-After writing each topic, update the run progress log (`knowledge/.runs/<date>-<mode>.md`).
-This is your audit trail — always current, even if the run is interrupted.
-
-## Modes
-
-### Routine mode (default)
-- 1 topic
-- low-cost sources
-- concise synthesis
-- quiet completion unless user asked for report
-
-### Burn mode (explicit only)
-Use when user explicitly asks to consume remaining credits/budget aggressively.
-
-Steps:
-1. Run `scripts/provider-usage.sh` to check current usage (supports Tide Pool, legacy lobster, or generic `openclaw status` fallback)
-2. Run `scripts/check-balance.sh` if you have balance JSON input to parse (supports generic fields: `remaining`, `balance`, `credits`, or Venice-specific `venice.data.diem`)
-3. Keep reserve from config (`min_reserve_usd`) if set
-4. Use heavier model + more sources (all optional sources enabled)
-5. Save after every topic (incremental write — never batch)
-6. Stop gracefully if balance or provider limit is hit
-7. If multiple auth profiles are available, monitor for exhaustion and note when rotation is needed
-8. Set up cron safety nets for continuity (see `references/output/burn-continuity.md`)
-9. After completing 80%+ of topics, shift to strategic synthesis documents
-
-### Phased burn (recommended for team deployments)
-
-For first-time deployments or large topic lists:
-
-**Phase 1: Context gathering (15-30 min)**
-- Mine workspace: project management data, team profiles, conversations
-- Map context signals to potential topics
-- Score by Urgency × Impact × Knowledge Gap
-- Build prioritized topic list (replaces or supplements seed list)
-
-**Phase 2: Depth-first topic burn (bulk of time)**
-- Work through topics in priority order
-- Quality checkpoint after topic 5
-- Monitor context usage hourly
-- Cron safety nets every 30-60 min
-
-**Phase 3: Department playbooks (15-20% of time)**
-- Generate per-department operational playbooks
-- Pull live task data per team member
-- Design specific AI-assisted workflows with time savings estimates
-
-**Phase 4: Strategic synthesis (final 10-15%)**
-- Priority matrix connecting all topics
-- Release scope recommendations
-- Competitive positioning narrative
-- Next-meeting action items
+Write immediately after each topic clears quality gate.
+Update run progress log after every write: `knowledge/.runs/<date>-<mode>-<HHMM>.md`.
 
 ## Ad-hoc topic injection
 
-Users can pass topics directly instead of using the seed list:
-- "Run bottom feeder on [topic1, topic2, ...]"
-- Ad-hoc topics skip the selection stage entirely — go straight to research.
-- Still subject to quality gate and progress logging.
+"Run bottom feeder on [topic1, topic2, ...]"
+- Skips Stage 1. No limit on topic count.
+- Quality gate and progress logging still apply.
+
+## Phased burn (team deployments)
+
+**Phase 1 — Context gathering (15-30 min):** Mine workspace, score topics.
+**Phase 2 — Topic burn (bulk):** Priority order. Checkpoints after 5 and 15.
+**Phase 3 — Department playbooks (15-20%):** Per-department guides with live task data.
+**Phase 4 — Strategic synthesis (10-15%):** Priority matrix, competitive positioning, action items. See `references/output/strategic-synthesis.md`.
 
 ## Guardrails
 
-- Never spend down to zero unless user explicitly says to.
-- Avoid duplicate rewrites when no meaningful updates exist.
-- Prefer free/local sources first.
-- If source collection is weak, write a partial with clear uncertainty notes.
-- Keep files readable; split oversized output into follow-up research files.
-- In burn mode with multiple auth profiles, track which profile is active and flag when switching is needed.
-- **Name real people in recommendations.** "Sam should do X" is more useful than "the engineering team should do X."
-- **Link every recommendation to a knowledge file.** Synthesis documents should reference the research that supports them.
-
-## Quick manual run recipe
-
-1. Pick one topic from `config/topics.md`
-2. Run brave search (3-6 results)
-3. Synthesize into `knowledge/topics/<slug>.md`
-4. Log run note in `memory/daily/YYYY-MM-DD.md`
-5. Report: topic, files changed, estimated cost mode used
+- Never spend to zero unless user explicitly says to.
+- Skip duplicate rewrites when no meaningful updates exist.
+- Prefer local/free sources before paid ones.
+- Weak sources → write partial with `[INCOMPLETE: reason]` tags.
+- Split oversized output into follow-up research files.
+- Log all sources used (tool, URL, date) in every output file.
+- Link every synthesis recommendation to its supporting knowledge file.
