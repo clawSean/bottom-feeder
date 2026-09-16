@@ -17,11 +17,14 @@ Generic seeds produce encyclopedias. Context-driven selection produces decision 
    - Repeated themes, explicit asks, unresolved questions
    - Score boost when mention count >= 2 or time-sensitive
    - Mine `memory/daily/YYYY-MM-DD.md` (today + yesterday)
+   - Extract candidate topics from direct asks like "research X", "build a plan for Y", or "we keep tripping on Z"
 
 3. **Existing knowledge** — `knowledge/`, `memory/`
    - Topics with stale dates (>14 days old in rapid-change domains)
    - Topics referenced but without a file yet
    - Broken cross-references
+   - If no file exists, or only shallow notes exist, mark it as a knowledge gap
+   - If a strategic or recently accessed file is older than 14-30 days in a fast-moving domain, mark it as a refresh candidate
 
 4. **Company docs** — Google Docs, Notion, Confluence
    - Strategy documents needing research backing
@@ -50,6 +53,11 @@ Before finalizing any candidate:
 - File exists but >14 days old in rapid-change domain → refresh candidate
 - Coverage strong and fresh → skip, pick next
 
+Refresh candidate format:
+- topic
+- existing_file
+- staleness_reason
+
 ## Trending Signals
 
 Light trend scan to propose additional candidates:
@@ -57,6 +65,8 @@ Light trend scan to propose additional candidates:
 - Recent community chatter in relevant channels
 - Prefer topics intersecting configured interests
 - Avoid pure hype — cap to 1 trending pick per run
+
+Trending candidates should answer "why this matters here" before they are allowed into the queue. If the only reason is hype, skip it.
 
 ## Tip
 

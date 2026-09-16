@@ -2,7 +2,10 @@
 
 ## Core Principle
 
-Use ALL tools available in your current environment. Do not default to a single search provider. Every topic deserves multiple source types — triangulate.
+Use the source categories that fit the question and triangulate when independent
+source types materially improve confidence. Load `web-use` for generic search,
+fetch, research-provider, browser, extraction, and fallback routing. Do not keep
+a competing provider ladder here.
 
 ## Source Categories
 
@@ -11,10 +14,21 @@ Search engines, AI-assisted search, news aggregators. Use whatever search tools 
 
 Capture: title, URL, key claim, publication date.
 
+Default module hint:
+- Let `web-use` select the configured native search provider.
+- Use about 5 results by default, with locale matched to the topic.
+- Routine runs may skip web lookup when local/internal authoritative sources
+  already answer the question.
+
 ### 2. Page Fetching & Extraction
 When search snippets are insufficient, fetch and read full pages. Use browser tools for JS-rendered content, fetch tools for static pages.
 
 Routine mode: 2-3 pages max. Burn/fleet: fetch aggressively.
+
+Default module hint:
+- Browser extraction is optional, not the default.
+- Keep it selective in routine runs, especially for JS-heavy or login-adjacent sites.
+- Prefer stable docs and primary sources over noisy marketing pages.
 
 ### 3. Local Knowledge Base
 Search `knowledge/`, `memory/`, and any indexed local content BEFORE hitting external sources. Existing coverage shapes what you need to find externally. Use knowledge-search skill or direct file search.
@@ -34,10 +48,26 @@ Crypto data (CoinGecko, CoinMarketCap), analytics, monitoring, or any domain-spe
 
 Capture: quantitative data points with timestamps.
 
+Default module hints:
+- CoinGecko: use for price, 24h change, market cap/rank, volume, and trend direction when a topic touches tokens or markets.
+- CoinMarketCap: use as a complement for token metadata, platform/contract mapping, and category tags. Do not treat it as mandatory for every crypto topic.
+
 ### 7. Social & Sentiment
 Twitter/X, Reddit, Discord, community forums. Use for narrative pulse, not sole truth source. Always pair with at least one non-social source.
 
-### 8. Any Other Available Tool
+Default module hint:
+- Use Twitter/X for narrative threads, notable accounts, and date/time context.
+- Do not treat tweets as the sole truth source.
+- Pair social signal with at least one primary, structured, or non-social source.
+
+### 8. Deep Synthesis Providers
+Use Perplexity or similar cited-synthesis tools only when the topic needs deeper cross-source synthesis, contradiction hunting, or richer citation discovery.
+
+Capture: key claims, cited URLs, unresolved contradictions.
+
+Routine guardrail: avoid paid/deep synthesis for low-cost smoke tests unless the user asks for depth.
+
+### 9. Any Other Available Tool
 MCP tools, skills, CLI utilities — if it's available and relevant, use it. The source list is not closed.
 
 ## Strategy by Topic Type

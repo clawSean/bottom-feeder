@@ -102,3 +102,13 @@ append_update_section: true
 # ── Scheduling hints ───────────────────────────────────────────
 recommended_schedule_local_time: "02:30"
 recommended_timezone: "America/Los_Angeles"
+
+# ── Supervisor / research-exploration (opt-in, re-introduced 2026-06-19) ──
+# linear = classic 4-stage crawl; tree_search = bounded branch exploration for
+# deep/high-uncertainty topics. Default linear; burn/deep runs may set tree_search.
+# See references/supervision/tree-search.md + references/supervision/quality-score.md.
+supervisor_mode: linear
+max_candidate_branches: 5
+max_branch_retries: 1
+quality_pass_threshold_routine: 8
+quality_pass_threshold_burn: 10

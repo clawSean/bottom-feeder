@@ -5,6 +5,11 @@ description: Knowledge research pipeline for OpenClaw. Selects topics (context-d
 
 # Bottom Feeder
 
+Bottom Feeder owns topic selection, research orchestration, synthesis, quality
+gates, and durable knowledge writes. Load `web-use` for generic retrieval,
+browser context, provider selection/fallback, and not-blocked escalation; this
+skill must not maintain a competing universal provider ladder.
+
 4-stage pipeline: select → collect → synthesize → write.
 Depth over breadth. Write after every topic. Never batch.
 Provider-agnostic — works with Anthropic, OpenAI, Venice/Diem, or local models.
@@ -94,7 +99,9 @@ Before finalizing, check `knowledge/` for existing coverage. Strong + recent cov
 
 Follow `references/research-sources.md`.
 
-**Core principle: use ALL tools available in your current environment.** Do not default to a single search provider. Triangulate across source categories.
+**Core principle:** choose relevant source categories, then let `web-use` route
+the transport/provider for each. Triangulate when independent source types
+materially improve confidence; do not invoke every tool by ritual.
 
 Before external searches, check local knowledge (`knowledge/`, `memory/`) for existing coverage.
 
@@ -171,7 +178,7 @@ For **supervised** or long burn runs, schedule checkpoint jobs (cron or equivale
 ## Quick manual run recipe
 
 1. Pick one topic from `config/topics.md`
-2. Run brave search (3-6 results)
+2. Load `web-use`; run the lightest dependable discovery/research route
 3. Synthesize into `knowledge/topics/<slug>.md`
 4. Log run note in `memory/daily/YYYY-MM-DD.md`
 5. Report: topic, files changed, estimated cost mode used
@@ -189,3 +196,19 @@ For **supervised** or long burn runs, schedule checkpoint jobs (cron or equivale
 - `config/run-policy.md.example` — opt-in run-policy template with fallback + batching
 - `config/signals.yaml.example` — opt-in external signal sources template
 - `scripts/check-provider-health.sh` — pre-flight provider reachability probe
+
+## Supervisor / tree-search mode (opt-in, re-introduced 2026-06-19)
+
+For deep, broad, or high-uncertainty topics (or when `supervisor_mode: tree_search`
+is set in `config/defaults.yaml` or the run policy), run the research as a bounded
+supervisor instead of a single linear crawl:
+
+1. Before collecting sources, follow `references/supervision/tree-search.md` —
+   propose 3-5 candidate branches, score them, explore the best branch.
+2. After synthesis and before the completion checklist, score the draft with
+   `references/supervision/quality-score.md` (burn/deep pass threshold ≥10/12);
+   retry once with a changed source mix / framing if the score is weak.
+3. Log branch scores, retries, and the final quality score in the run-progress file.
+
+Stays orthogonal to `execution_mode` (single/batched/supervised): tree-search controls
+*research direction*; execution_mode controls *subagent orchestration*. They compose.

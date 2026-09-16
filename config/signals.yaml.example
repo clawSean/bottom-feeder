@@ -24,7 +24,7 @@ sources:
     enabled: false
     # The agent fetches the token at runtime. Do NOT put secrets in this file.
     # Provide a runtime reference (examples: op:// for 1Password, env:VAR for env var).
-    auth_ref: "op://Personal/Asana PAT/password"
+    auth_ref: "op://YOUR-VAULT/Asana PAT/password"
     workspace_id: ""
     filter:
       assignee: "me"
@@ -44,7 +44,7 @@ sources:
   # --- Linear ---------------------------------------------------------------
   linear:
     enabled: false
-    auth_ref: "op://Personal/Linear API Key/password"
+    auth_ref: "op://YOUR-VAULT/Linear API Key/password"
     team_ids: []
     filter:
       state: ["Todo", "In Progress"]
@@ -67,7 +67,7 @@ sources:
   # --- Notion databases -----------------------------------------------------
   notion:
     enabled: false
-    auth_ref: "op://Personal/Notion Integration Token/password"
+    auth_ref: "op://YOUR-VAULT/Notion Integration Token/password"
     database_ids: []
     filter:
       status: ["To Do", "In Progress"]
