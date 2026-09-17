@@ -172,6 +172,15 @@ for s in scripts/*.sh; do
   fi
 done
 
+# --- 7. Generic web routing remains delegated to web-use ---
+echo
+echo "-- web-use boundary --"
+if bash scripts/validate-web-use-boundary.sh >/dev/null; then
+  ok "delegates generic provider routing to web-use"
+else
+  fail "web-use routing boundary validation failed"
+fi
+
 # --- Summary ---
 echo
 echo "=== Results: $pass passed, $fail failed ==="
